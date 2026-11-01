@@ -1,0 +1,21 @@
+name: Publish calendar update
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Make SHA256
+        run: sha256sum icloud_widget.py > icloud_widget.py.sha256
+      - name: Publish a GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${GITHUB_REF_NAME}" icloud_widget.py icloud_widget.py.sha256 --title "${GITHUB_REF_NAME}" --generate-notes
