@@ -18,7 +18,7 @@ import caldav
 import keyring
 
 APP = 'iCloud Desktop Widget'
-VERSION = '2.2.0'
+VERSION = '2.3.0'
 UPDATE_API = 'https://api.github.com/repos/{repo}/releases/latest'
 
 SERVICE = 'iCloudDesktopWidget.CalDAV'
@@ -39,7 +39,25 @@ THEMES = {
     'ライト': {'bg':'#f5f7fa','panel':'#e9eef5','text':'#1c2938','sub':'#62758c','accent':'#176bc1','border':'#d6dfea','today':'#bfdbf5','inactive':'#a7b0bc'},
     'ブルーグレー': {'bg':'#e6edf1','panel':'#d5e1e8','text':'#223645','sub':'#617989','accent':'#276d8b','border':'#b4c8d3','today':'#b3d5e5','inactive':'#8fa6b2'},
     'さくら': {'bg':'#fff7f8','panel':'#f9e8ed','text':'#463341','sub':'#8a6b7c','accent':'#b24c75','border':'#ead4df','today':'#f5cbd9','inactive':'#beaeb7'},
+    'ミッドナイト': dict(zip(('bg','panel','text','sub','accent','border','today','inactive'), ['#101522','#1b2334','#eef4ff','#9aacc5','#7ebcff','#303e55','#28466a','#7183a1'])),
+    'フォレスト': dict(zip(('bg','panel','text','sub','accent','border','today','inactive'), ['#132820','#1d3c30','#e8fff0','#a8cdb7','#80dca3','#365c48','#326449','#7a9d8b'])),
+    'オーシャン': dict(zip(('bg','panel','text','sub','accent','border','today','inactive'), ['#092a3b','#103f54','#e4faff','#91c7d5','#52d5e9','#275b72','#17617a','#7babb8'])),
+    'ラベンダー': dict(zip(('bg','panel','text','sub','accent','border','today','inactive'), ['#f4f0ff','#e8def9','#352c4c','#76698e','#8462c5','#d3c6ec','#d6c2f5','#a79abc'])),
+    'ピーチ': dict(zip(('bg','panel','text','sub','accent','border','today','inactive'), ['#fff2e9','#ffe2d4','#49332e','#936e64','#d57957','#f3c9b6','#ffd3bd','#c9a598'])),
+    'ミント': dict(zip(('bg','panel','text','sub','accent','border','today','inactive'), ['#e9f9f1','#d5f0e4','#234139','#6a9283','#24896c','#b1d9c9','#b7e9d2','#95b8ab'])),
+    'クリーム': dict(zip(('bg','panel','text','sub','accent','border','today','inactive'), ['#fff9e8','#f5ebd1','#4a3a28','#87795f','#b77b3c','#e5d6b7','#ffe2a9','#b3a78d'])),
+    'ローズ': dict(zip(('bg','panel','text','sub','accent','border','today','inactive'), ['#311e2c','#4c2a41','#fff0f7','#d6a7be','#f3a0cc','#68435e','#70415f','#b88ca5'])),
+    'サンセット': dict(zip(('bg','panel','text','sub','accent','border','today','inactive'), ['#30222c','#493040','#fff2e6','#cbb4b7','#f5a16e','#69495b','#734b53','#aa8e96'])),
+    'モノクロ': dict(zip(('bg','panel','text','sub','accent','border','today','inactive'), ['#181818','#292929','#f8f8f8','#aeb0b2','#ffffff','#444444','#484848','#7a7a7a'])),
+    'セピア': dict(zip(('bg','panel','text','sub','accent','border','today','inactive'), ['#f1e8d8','#e7d9c4','#4b392c','#806b54','#a76c42','#cdbba4','#d4b28b','#ae9c87'])),
+    'コバルト': dict(zip(('bg','panel','text','sub','accent','border','today','inactive'), ['#e9f0ff','#d4e2ff','#142c59','#647cac','#2356c8','#b7cafa','#b6ceff','#8fa5d1'])),
+    'ワイン': dict(zip(('bg','panel','text','sub','accent','border','today','inactive'), ['#2b1822','#432634','#ffe8ee','#cc9ba9','#e678a0','#614050','#67334b','#ac7b8c'])),
+    'アクア': dict(zip(('bg','panel','text','sub','accent','border','today','inactive'), ['#edfdfb','#d5f5f2','#1b4449','#6b999c','#238e9b','#a8d9d6','#b2e9e5','#89b6b7'])),
+    'コーヒー': dict(zip(('bg','panel','text','sub','accent','border','today','inactive'), ['#261f1a','#392e26','#f8ede2','#bda799','#dda76e','#58463b','#604936','#a48c7c'])),
+    'ネオン': dict(zip(('bg','panel','text','sub','accent','border','today','inactive'), ['#0e1020','#1c2040','#edf9ff','#aab9d4','#3af2d0','#343d6a','#294b67','#8494b8'])),
 }
+
+PATTERNS = ['なし','ドット','ストライプ','グリッド','斜線','チェック','波線','スター']
 
 def set_theme(name):
     global BG, PANEL, TEXT, SUB, ACCENT, BORDER, TODAY_BG, INACTIVE
@@ -125,7 +143,10 @@ class Widget:
                        highlightthickness=0,relief='flat',bd=0,font=('Yu Gothic UI',9))
         menu['menu'].configure(bg=PANEL,fg=TEXT)
         menu.pack(side='right',padx=(7,0))
-        tk.Frame(self.root,bg=BORDER,height=1).pack(fill='x',padx=16)
+        self.pattern_canvas = tk.Canvas(self.root, bg=BG, highlightthickness=0, borderwidth=0, height=25)
+        self.pattern_canvas.pack(fill='x',padx=16)
+        self.pattern_canvas.bind('<Configure>',lambda event:self.draw_pattern(event.width))
+        self.draw_pattern(700)
 
         body=tk.Frame(self.root,bg=BG)
         body.pack(fill='both',expand=True,padx=13,pady=(8,4))
@@ -161,6 +182,40 @@ class Widget:
         self.status.pack(fill='x',padx=17,pady=(1,7))
         self.draw()
 
+    def draw_pattern(self, width):
+        canvas = getattr(self, 'pattern_canvas', None)
+        if canvas is None: return
+        canvas.delete('all')
+        pattern = self.settings.get('pattern', 'なし')
+        if pattern not in PATTERNS: pattern = 'なし'
+        color = ACCENT
+        w = max(100, width)
+        if pattern == 'なし':
+            canvas.create_line(0,12,w,12,fill=BORDER,width=1)
+        elif pattern == 'ドット':
+            for x in range(9,w,19):
+                for y in (7,19): canvas.create_oval(x-2,y-2,x+2,y+2,fill=color,outline='')
+        elif pattern == 'ストライプ':
+            for x in range(0,w,16): canvas.create_rectangle(x,3,x+6,23,fill=color,outline='')
+        elif pattern == 'グリッド':
+            for x in range(0,w,22): canvas.create_line(x,1,x,24,fill=color)
+            for y in (2,12,22): canvas.create_line(0,y,w,y,fill=color)
+        elif pattern == '斜線':
+            for x in range(-30,w,20): canvas.create_line(x,24,x+24,0,fill=color,width=2)
+        elif pattern == 'チェック':
+            for x in range(0,w,30):
+                canvas.create_rectangle(x,1,x+15,12,fill=color,outline='')
+                canvas.create_rectangle(x+15,12,x+30,23,fill=color,outline='')
+        elif pattern == '波線':
+            import math
+            for x in range(w-1):
+                y1=12+6*math.sin(x/13)
+                y2=12+6*math.sin((x+1)/13)
+                canvas.create_line(x,y1,x+1,y2,fill=color,width=2)
+        elif pattern == 'スター':
+            for x in range(16,w,33):
+                canvas.create_text(x,12,text='✦',fill=color,font=('Segoe UI Symbol',13))
+
     def drag_start(self, event):
         self._drag_origin = (event.x_root - self.root.winfo_x(), event.y_root - self.root.winfo_y())
 
@@ -195,7 +250,7 @@ class Widget:
     def display_dialog(self):
         win = tk.Toplevel(self.root)
         win.title('表示と起動設定')
-        win.geometry('390x290')
+        win.geometry('410x365')
         win.configure(bg=BG)
         tk.Label(win, text='ウィンドウの表示', bg=BG, fg=TEXT,
                  font=('Yu Gothic UI',12,'bold')).pack(pady=(16,9))
@@ -208,6 +263,12 @@ class Widget:
         tk.Scale(win,from_=0.60,to=1.0,resolution=0.05,orient='horizontal',
                  variable=alpha,bg=BG,fg=TEXT,highlightthickness=0,
                  troughcolor=PANEL, length=280).pack()
+        tk.Label(win,text='装飾パターン',bg=BG,fg=TEXT).pack(pady=(7,0))
+        pattern_var = tk.StringVar(value=self.settings.get('pattern','なし'))
+        pattern_menu = tk.OptionMenu(win,pattern_var,*PATTERNS)
+        pattern_menu.configure(bg=PANEL,fg=TEXT,highlightthickness=0,relief='flat')
+        pattern_menu['menu'].configure(bg=PANEL,fg=TEXT)
+        pattern_menu.pack()
         startup = tk.BooleanVar(value=self.startup_script_path().exists())
         tk.Checkbutton(win,text='Windowsログイン時に自動起動（黒い画面なし）',
                        variable=startup,bg=BG,fg=TEXT,selectcolor=PANEL,
@@ -215,10 +276,12 @@ class Widget:
         def apply():
             try:
                 self.set_startup(startup.get())
+                self.settings['pattern']=pattern_var.get()
                 self.settings['opacity']=alpha.get()
                 self.settings['borderless']=border_var.get()
                 save_settings(self.settings)
                 self.root.attributes('-alpha',alpha.get())
+                self.draw_pattern(self.pattern_canvas.winfo_width())
                 if self.borderless != border_var.get():
                     self.borderless = border_var.get()
                     self.root.overrideredirect(self.borderless)
