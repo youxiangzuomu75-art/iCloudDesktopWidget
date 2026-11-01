@@ -189,8 +189,8 @@ class Widget:
         command = f'"{exe}" "{app}"'
         vbcommand = command.replace('"', '""')
         script.parent.mkdir(parents=True, exist_ok=True)
-        script.write_text('Set sh = CreateObject("WScript.Shell")\\n'
-                          f'sh.Run "{vbcommand}", 0, False\\n', encoding='utf-8')
+        script.write_text('Set sh = CreateObject("WScript.Shell")\n'
+                          f'sh.Run "{vbcommand}", 0, False\n', encoding='utf-8')
 
     def display_dialog(self):
         win = tk.Toplevel(self.root)
