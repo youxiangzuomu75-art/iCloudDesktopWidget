@@ -18,7 +18,7 @@ import caldav
 import keyring
 
 APP = 'iCloud Desktop Widget'
-VERSION = '2.3.0'
+VERSION = '2.4.0'
 UPDATE_API = 'https://api.github.com/repos/{repo}/releases/latest'
 
 SERVICE = 'iCloudDesktopWidget.CalDAV'
@@ -58,6 +58,8 @@ THEMES = {
 }
 
 PATTERNS = ['なし','ドット','ストライプ','グリッド','斜線','チェック','波線','スター']
+LAYOUTS = {'標準（カレンダー＋予定）':'standard', 'コンパクト（月間）':'compact', '予定一覧のみ':'agenda'}
+MIN_SIZE = {'standard':(620,360),'compact':(350,300),'agenda':(330,230)}
 
 def set_theme(name):
     global BG, PANEL, TEXT, SUB, ACCENT, BORDER, TODAY_BG, INACTIVE
@@ -99,7 +101,9 @@ class Widget:
         root.title(APP)
         root.configure(bg=BG)
         root.geometry(self.settings.get('geometry_v2','760x450+55+65'))
-        root.minsize(640, 365)
+        self.layout_mode = self.settings.get('layout_mode', 'standard')
+        if self.layout_mode not in MIN_SIZE: self.layout_mode = 'standard'
+        root.minsize(*MIN_SIZE[self.layout_mode])
         root.attributes('-topmost', False)
         self.borderless = bool(self.settings.get('borderless', False))
         root.attributes('-alpha', max(0.60, min(1.0, float(self.settings.get('opacity', 0.96)))))
@@ -122,64 +126,77 @@ class Widget:
     def build(self):
         for child in self.root.winfo_children(): child.destroy()
         self.root.configure(bg=BG)
-        header = tk.Frame(self.root, bg=BG)
-        header.pack(fill='x', padx=16, pady=(11, 8))
-        title_label=tk.Label(header,text='iCloud カレンダー',bg=BG,fg=TEXT,
-                 font=('Yu Gothic UI',14,'bold'),cursor='fleur')
-        title_label.pack(side='left')
-        for widget in (header, title_label):
-            widget.bind('<ButtonPress-1>', self.drag_start)
-            widget.bind('<B1-Motion>', self.drag_move)
-        self.button(header,'終了',self.close).pack(side='right',padx=(5,0))
-        self.button(header,'表示設定',self.display_dialog).pack(side='right',padx=(5,0))
-        self.button(header,'⚙ 接続',self.connect_dialog).pack(side='right',padx=(5,0))
-        self.button(header,'更新確認',self.check_updates_manual).pack(side='right',padx=(5,0))
-        self.button(header,'↻ 更新',self.refresh).pack(side='right',padx=(5,0))
-        self.button(header,'選択',self.pick_calendars).pack(side='right',padx=(5,0))
-        choices=list(THEMES.keys())
+        mode=self.layout_mode
+        header=tk.Frame(self.root,bg=BG)
+        header.pack(fill='x',padx=10,pady=(7,1))
+        title=tk.Label(header,text='iCloud カレンダー',bg=BG,fg=TEXT,
+                       font=('Yu Gothic UI',12,'bold'),cursor='fleur')
+        title.pack(side='left')
+        for widget in (header,title):
+            widget.bind('<ButtonPress-1>',self.drag_start)
+            widget.bind('<B1-Motion>',self.drag_move)
+        self.button(header,'終了',self.close).pack(side='right',padx=2)
+        self.button(header,'表示設定',self.display_dialog).pack(side='right',padx=2)
+
+        toolbar=tk.Frame(self.root,bg=BG)
+        toolbar.pack(fill='x',padx=10,pady=(0,3))
+        self.button(toolbar,'接続',self.connect_dialog).pack(side='left',padx=2)
+        self.button(toolbar,'更新確認',self.check_updates_manual).pack(side='left',padx=2)
+        self.button(toolbar,'更新',self.refresh).pack(side='left',padx=2)
+        self.button(toolbar,'選択',self.pick_calendars).pack(side='left',padx=2)
         self.theme_var=tk.StringVar(value=self.settings.get('theme','ダーク'))
-        menu=tk.OptionMenu(header,self.theme_var,*choices,command=self.change_theme)
+        menu=tk.OptionMenu(toolbar,self.theme_var,*THEMES.keys(),command=self.change_theme)
         menu.configure(bg=PANEL,fg=TEXT,activebackground=PANEL,activeforeground=TEXT,
                        highlightthickness=0,relief='flat',bd=0,font=('Yu Gothic UI',9))
         menu['menu'].configure(bg=PANEL,fg=TEXT)
-        menu.pack(side='right',padx=(7,0))
-        self.pattern_canvas = tk.Canvas(self.root, bg=BG, highlightthickness=0, borderwidth=0, height=25)
-        self.pattern_canvas.pack(fill='x',padx=16)
+        menu.pack(side='right',padx=2)
+
+        self.pattern_canvas=tk.Canvas(self.root,bg=BG,highlightthickness=0,borderwidth=0,height=16)
+        self.pattern_canvas.pack(fill='x',padx=10)
         self.pattern_canvas.bind('<Configure>',lambda event:self.draw_pattern(event.width))
-        self.draw_pattern(700)
-
         body=tk.Frame(self.root,bg=BG)
-        body.pack(fill='both',expand=True,padx=13,pady=(8,4))
-        left=tk.Frame(body,bg=BG,width=340)
-        left.pack(side='left',fill='y',padx=(0,12))
-        left.pack_propagate(False)
-        right=tk.Frame(body,bg=BG)
-        right.pack(side='left',fill='both',expand=True)
+        body.pack(fill='both',expand=True,padx=9,pady=(3,2))
+        self.gridframe=None
+        self.month_label=None
+        self.listbox=None
 
-        nav=tk.Frame(left,bg=BG)
-        nav.pack(fill='x',pady=(0,5))
-        self.button(nav,'‹',lambda:self.move(-1),width=2).pack(side='left')
-        self.month_label=tk.Label(nav,bg=BG,fg=TEXT,font=('Yu Gothic UI',12,'bold'))
-        self.month_label.pack(side='left',expand=True)
-        self.button(nav,'今日',self.today).pack(side='right')
-        self.button(nav,'›',lambda:self.move(1),width=2).pack(side='right')
-        self.gridframe=tk.Frame(left,bg=BG)
-        self.gridframe.pack(fill='both',expand=True)
+        if mode != 'agenda':
+            left=tk.Frame(body,bg=BG)
+            if mode=='standard':
+                left.configure(width=300)
+                left.pack(side='left',fill='y',padx=(0,8))
+                left.pack_propagate(False)
+            else:
+                left.pack(fill='both',expand=True)
+            nav=tk.Frame(left,bg=BG)
+            nav.pack(fill='x',pady=(0,3))
+            self.button(nav,'‹',lambda:self.move(-1),width=2).pack(side='left')
+            self.month_label=tk.Label(nav,bg=BG,fg=TEXT,font=('Yu Gothic UI',11,'bold'))
+            self.month_label.pack(side='left',expand=True)
+            self.button(nav,'今日',self.today).pack(side='right')
+            self.button(nav,'›',lambda:self.move(1),width=2).pack(side='right')
+            self.gridframe=tk.Frame(left,bg=BG)
+            self.gridframe.pack(fill='both',expand=True)
 
-        tk.Label(right,text='今後の予定',bg=BG,fg=TEXT,
-                 font=('Yu Gothic UI',12,'bold'),anchor='w').pack(fill='x',pady=(4,6))
-        wrap=tk.Frame(right,bg=BG)
-        wrap.pack(fill='both',expand=True)
-        self.listbox=tk.Text(wrap,bg=BG,fg=TEXT,font=('Yu Gothic UI',10),wrap='word',
-                     relief='flat',borderwidth=0,highlightthickness=0,spacing3=4,cursor='arrow')
-        scroll=ttk.Scrollbar(wrap,orient='vertical',command=self.listbox.yview)
-        self.listbox.configure(yscrollcommand=scroll.set,state='disabled')
-        scroll.pack(side='right',fill='y')
-        self.listbox.pack(side='left',fill='both',expand=True)
-        self.listbox.tag_configure('date',foreground=ACCENT,font=('Yu Gothic UI',10,'bold'))
-        self.listbox.tag_configure('sub',foreground=SUB)
-        self.status=tk.Label(self.root,text='接続待機中',bg=BG,fg=SUB,anchor='w',font=('Yu Gothic UI',9))
-        self.status.pack(fill='x',padx=17,pady=(1,7))
+        if mode != 'compact':
+            right=tk.Frame(body,bg=BG)
+            right.pack(side='left',fill='both',expand=True)
+            tk.Label(right,text='今後の予定',bg=BG,fg=TEXT,
+                     font=('Yu Gothic UI',11,'bold'),anchor='w').pack(fill='x',pady=(2,3))
+            wrap=tk.Frame(right,bg=BG)
+            wrap.pack(fill='both',expand=True)
+            self.listbox=tk.Text(wrap,bg=BG,fg=TEXT,font=('Yu Gothic UI',10),
+                                wrap='word',relief='flat',borderwidth=0,
+                                highlightthickness=0,spacing3=4,cursor='arrow')
+            scroll=ttk.Scrollbar(wrap,orient='vertical',command=self.listbox.yview)
+            self.listbox.configure(yscrollcommand=scroll.set,state='disabled')
+            scroll.pack(side='right',fill='y')
+            self.listbox.pack(side='left',fill='both',expand=True)
+            self.listbox.tag_configure('date',foreground=ACCENT,font=('Yu Gothic UI',10,'bold'))
+            self.listbox.tag_configure('sub',foreground=SUB)
+        self.status=tk.Label(self.root,text='接続待機中',bg=BG,fg=SUB,
+                             anchor='w',font=('Yu Gothic UI',8))
+        self.status.pack(fill='x',padx=12,pady=(0,4))
         self.draw()
 
     def draw_pattern(self, width):
@@ -248,47 +265,72 @@ class Widget:
                           f'sh.Run "{vbcommand}", 0, False\n', encoding='utf-8')
 
     def display_dialog(self):
-        win = tk.Toplevel(self.root)
-        win.title('表示と起動設定')
-        win.geometry('410x365')
+        win=tk.Toplevel(self.root)
+        win.title('表示・サイズ・自動起動')
+        win.geometry('440x525')
         win.configure(bg=BG)
-        tk.Label(win, text='ウィンドウの表示', bg=BG, fg=TEXT,
-                 font=('Yu Gothic UI',12,'bold')).pack(pady=(16,9))
-        border_var = tk.BooleanVar(value=self.borderless)
-        tk.Checkbutton(win, text='枠なし表示（上部タイトルをドラッグして移動）',
-                       variable=border_var, bg=BG, fg=TEXT, selectcolor=PANEL,
-                       activebackground=BG,activeforeground=TEXT).pack(anchor='w',padx=25)
-        tk.Label(win,text='透明度',bg=BG,fg=TEXT).pack(pady=(13,0))
-        alpha = tk.DoubleVar(value=float(self.settings.get('opacity',0.96)))
+        tk.Label(win,text='表示モードとウィンドウサイズ',bg=BG,fg=TEXT,
+                 font=('Yu Gothic UI',12,'bold')).pack(pady=(10,6))
+        reverse={v:k for k,v in LAYOUTS.items()}
+        mode_var=tk.StringVar(value=reverse.get(self.layout_mode,'標準（カレンダー＋予定）'))
+        chooser=tk.OptionMenu(win,mode_var,*LAYOUTS.keys())
+        chooser.configure(bg=PANEL,fg=TEXT,relief='flat',highlightthickness=0)
+        chooser['menu'].configure(bg=PANEL,fg=TEXT)
+        chooser.pack()
+        sizes={'standard':(760,450),'compact':(430,350),'agenda':(410,380)}
+        values=tk.Frame(win,bg=BG)
+        values.pack(pady=(12,5))
+        tk.Label(values,text='横幅(px)',bg=BG,fg=TEXT).grid(row=0,column=0,padx=5)
+        tk.Label(values,text='高さ(px)',bg=BG,fg=TEXT).grid(row=0,column=1,padx=5)
+        width_var=tk.StringVar(value=str(self.root.winfo_width()))
+        height_var=tk.StringVar(value=str(self.root.winfo_height()))
+        tk.Entry(values,textvariable=width_var,width=9,font=('Segoe UI',11)).grid(row=1,column=0,padx=5)
+        tk.Entry(values,textvariable=height_var,width=9,font=('Segoe UI',11)).grid(row=1,column=1,padx=5)
+        def preset():
+            w,h=sizes[LAYOUTS[mode_var.get()]]
+            width_var.set(str(w));height_var.set(str(h))
+        self.button(win,'このモードの推奨サイズを入力',preset).pack(pady=(4,7))
+        border_var=tk.BooleanVar(value=self.borderless)
+        tk.Checkbutton(win,text='枠なし表示',variable=border_var,bg=BG,fg=TEXT,
+                       selectcolor=PANEL,activebackground=BG,activeforeground=TEXT).pack(anchor='w',padx=35)
+        tk.Label(win,text='透明度',bg=BG,fg=TEXT).pack(pady=(5,0))
+        alpha=tk.DoubleVar(value=float(self.settings.get('opacity',0.96)))
         tk.Scale(win,from_=0.60,to=1.0,resolution=0.05,orient='horizontal',
                  variable=alpha,bg=BG,fg=TEXT,highlightthickness=0,
-                 troughcolor=PANEL, length=280).pack()
-        tk.Label(win,text='装飾パターン',bg=BG,fg=TEXT).pack(pady=(7,0))
-        pattern_var = tk.StringVar(value=self.settings.get('pattern','なし'))
-        pattern_menu = tk.OptionMenu(win,pattern_var,*PATTERNS)
-        pattern_menu.configure(bg=PANEL,fg=TEXT,highlightthickness=0,relief='flat')
-        pattern_menu['menu'].configure(bg=PANEL,fg=TEXT)
-        pattern_menu.pack()
-        startup = tk.BooleanVar(value=self.startup_script_path().exists())
-        tk.Checkbutton(win,text='Windowsログイン時に自動起動（黒い画面なし）',
-                       variable=startup,bg=BG,fg=TEXT,selectcolor=PANEL,
-                       activebackground=BG,activeforeground=TEXT).pack(anchor='w',padx=25,pady=(10,4))
+                 troughcolor=PANEL,length=280).pack()
+        tk.Label(win,text='装飾パターン',bg=BG,fg=TEXT).pack(pady=(3,0))
+        pattern_var=tk.StringVar(value=self.settings.get('pattern','なし'))
+        pm=tk.OptionMenu(win,pattern_var,*PATTERNS)
+        pm.configure(bg=PANEL,fg=TEXT,highlightthickness=0,relief='flat')
+        pm['menu'].configure(bg=PANEL,fg=TEXT)
+        pm.pack()
+        startup=tk.BooleanVar(value=self.startup_script_path().exists())
+        tk.Checkbutton(win,text='Windowsログイン時に自動起動',variable=startup,
+                       bg=BG,fg=TEXT,selectcolor=PANEL,
+                       activebackground=BG,activeforeground=TEXT).pack(anchor='w',padx=35,pady=(7,1))
         def apply():
             try:
+                mode=LAYOUTS[mode_var.get()]
+                width,height=int(width_var.get()),int(height_var.get())
+                minw,minh=MIN_SIZE[mode]
+                if not (minw<=width<=3200 and minh<=height<=2000):
+                    raise ValueError(f'このモードのサイズは横{minw}～3200、縦{minh}～2000 pxです')
                 self.set_startup(startup.get())
-                self.settings['pattern']=pattern_var.get()
-                self.settings['opacity']=alpha.get()
-                self.settings['borderless']=border_var.get()
-                save_settings(self.settings)
+                self.settings.update(pattern=pattern_var.get(),opacity=alpha.get(),
+                                     borderless=border_var.get(),layout_mode=mode)
+                self.layout_mode=mode
+                self.root.minsize(*MIN_SIZE[mode])
+                self.root.geometry(f'{width}x{height}+{self.root.winfo_x()}+{self.root.winfo_y()}')
                 self.root.attributes('-alpha',alpha.get())
-                self.draw_pattern(self.pattern_canvas.winfo_width())
                 if self.borderless != border_var.get():
-                    self.borderless = border_var.get()
+                    self.borderless=border_var.get()
                     self.root.overrideredirect(self.borderless)
+                save_settings(self.settings)
+                self.build()
                 win.destroy()
-            except Exception as exc:
-                messagebox.showerror('設定に失敗',str(exc),parent=win)
-        self.button(win,'保存して適用',apply).pack(pady=9)
+            except (ValueError,tk.TclError,OSError) as exc:
+                messagebox.showerror('設定を確認してください',str(exc),parent=win)
+        self.button(win,'保存して適用',apply).pack(pady=12)
 
     def change_theme(self, name):
         self.settings['theme']=name
@@ -311,6 +353,9 @@ class Widget:
         self.refresh()
 
     def draw(self):
+        if self.gridframe is None:
+            self.render_events()
+            return
         for child in self.gridframe.winfo_children(): child.destroy()
         y,m=self.show_month.year,self.show_month.month
         self.month_label.configure(text=f'{y}年 {m}月')
@@ -333,7 +378,7 @@ class Widget:
                 current=(date.month==m)
                 bg=TODAY_BG if date==today else PANEL if current else BG
                 f=TEXT if current else INACTIVE
-                cell=tk.Frame(self.gridframe,bg=bg,height=40)
+                cell=tk.Frame(self.gridframe,bg=bg,height=32 if self.layout_mode=='compact' else 40)
                 cell.grid(row=row,column=col,sticky='nsew',padx=2,pady=2)
                 cell.grid_propagate(False)
                 tk.Label(cell,text=str(date.day),fg=f,bg=bg,font=('Yu Gothic UI',10,'bold' if date==today else 'normal')).pack(pady=(4,0))
@@ -342,6 +387,7 @@ class Widget:
         self.render_events()
 
     def render_events(self):
+        if self.listbox is None: return
         self.listbox.config(state='normal')
         self.listbox.delete('1.0','end')
         now=dt.datetime.now(JST)
