@@ -2,8 +2,11 @@ name: Publish calendar update
 
 on:
   push:
+    branches:
+      - main
     tags:
       - 'v*'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -13,9 +16,34 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Make SHA256
-        run: sha256sum icloud_widget.py > icloud_widget.py.sha256
-      - name: Publish a GitHub Release
+      - name: Determine release version
+        id: version
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=v2.1.0" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Check whether bootstrap upload is needed
+        id: check
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${GITHUB_REF_NAME}" icloud_widget.py icloud_widget.py.sha256 --title "${GITHUB_REF_NAME}" --generate-notes
+          TAG: ${{ steps.version.outputs.tag }}
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF}" == refs/heads/main ]] && gh release view "$TAG" --json assets --jq '.assets[].name' | grep -qx 'icloud_widget.py'; then
+            echo "upload=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "upload=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Build and publish release assets
+        if: steps.check.outputs.upload == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        shell: bash
+        run: |
+          sha256sum icloud_widget.py > icloud_widget.py.sha256
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "$TAG" --generate-notes
+          gh release upload "$TAG" icloud_widget.py icloud_widget.py.sha256 --clobber
