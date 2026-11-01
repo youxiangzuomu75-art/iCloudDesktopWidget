@@ -18,7 +18,7 @@ import caldav
 import keyring
 
 APP = 'iCloud Desktop Widget'
-VERSION = '2.1.0'
+VERSION = '2.2.0'
 UPDATE_API = 'https://api.github.com/repos/{repo}/releases/latest'
 
 SERVICE = 'iCloudDesktopWidget.CalDAV'
@@ -83,6 +83,11 @@ class Widget:
         root.geometry(self.settings.get('geometry_v2','760x450+55+65'))
         root.minsize(640, 365)
         root.attributes('-topmost', False)
+        self.borderless = bool(self.settings.get('borderless', False))
+        root.attributes('-alpha', max(0.60, min(1.0, float(self.settings.get('opacity', 0.96)))))
+        if self.borderless:
+            root.overrideredirect(True)
+        self._drag_origin = None
         root.protocol('WM_DELETE_WINDOW', self.close)
         self.build()
         root.after(1800, self.check_updates_silent)
@@ -101,8 +106,14 @@ class Widget:
         self.root.configure(bg=BG)
         header = tk.Frame(self.root, bg=BG)
         header.pack(fill='x', padx=16, pady=(11, 8))
-        tk.Label(header,text='iCloud カレンダー',bg=BG,fg=TEXT,
-                 font=('Yu Gothic UI',14,'bold')).pack(side='left')
+        title_label=tk.Label(header,text='iCloud カレンダー',bg=BG,fg=TEXT,
+                 font=('Yu Gothic UI',14,'bold'),cursor='fleur')
+        title_label.pack(side='left')
+        for widget in (header, title_label):
+            widget.bind('<ButtonPress-1>', self.drag_start)
+            widget.bind('<B1-Motion>', self.drag_move)
+        self.button(header,'終了',self.close).pack(side='right',padx=(5,0))
+        self.button(header,'表示設定',self.display_dialog).pack(side='right',padx=(5,0))
         self.button(header,'⚙ 接続',self.connect_dialog).pack(side='right',padx=(5,0))
         self.button(header,'更新確認',self.check_updates_manual).pack(side='right',padx=(5,0))
         self.button(header,'↻ 更新',self.refresh).pack(side='right',padx=(5,0))
@@ -149,6 +160,72 @@ class Widget:
         self.status=tk.Label(self.root,text='接続待機中',bg=BG,fg=SUB,anchor='w',font=('Yu Gothic UI',9))
         self.status.pack(fill='x',padx=17,pady=(1,7))
         self.draw()
+
+    def drag_start(self, event):
+        self._drag_origin = (event.x_root - self.root.winfo_x(), event.y_root - self.root.winfo_y())
+
+    def drag_move(self, event):
+        if self._drag_origin is not None:
+            x = event.x_root - self._drag_origin[0]
+            y = event.y_root - self._drag_origin[1]
+            self.root.geometry(f'+{max(0,x)}+{max(0,y)}')
+
+    def startup_script_path(self):
+        folder = Path(os.environ.get('APPDATA', str(Path.home()))) / 'Microsoft' / 'Windows' / 'Start Menu' / 'Programs' / 'Startup'
+        return folder / 'iCloudDesktopWidget.vbs'
+
+    def set_startup(self, enabled):
+        script = self.startup_script_path()
+        if not enabled:
+            script.unlink(missing_ok=True)
+            return
+        exe = Path(sys.executable)
+        if exe.name.lower() in ('python.exe', 'python3.exe'):
+            silent = exe.with_name('pythonw.exe')
+            if silent.exists():
+                exe = silent
+        app = Path(__file__).resolve()
+        # Escape quotes for VBScript strings; no credentials go in this file.
+        command = f'"{exe}" "{app}"'
+        vbcommand = command.replace('"', '""')
+        script.parent.mkdir(parents=True, exist_ok=True)
+        script.write_text('Set sh = CreateObject("WScript.Shell")\\n'
+                          f'sh.Run "{vbcommand}", 0, False\\n', encoding='utf-8')
+
+    def display_dialog(self):
+        win = tk.Toplevel(self.root)
+        win.title('表示と起動設定')
+        win.geometry('390x290')
+        win.configure(bg=BG)
+        tk.Label(win, text='ウィンドウの表示', bg=BG, fg=TEXT,
+                 font=('Yu Gothic UI',12,'bold')).pack(pady=(16,9))
+        border_var = tk.BooleanVar(value=self.borderless)
+        tk.Checkbutton(win, text='枠なし表示（上部タイトルをドラッグして移動）',
+                       variable=border_var, bg=BG, fg=TEXT, selectcolor=PANEL,
+                       activebackground=BG,activeforeground=TEXT).pack(anchor='w',padx=25)
+        tk.Label(win,text='透明度',bg=BG,fg=TEXT).pack(pady=(13,0))
+        alpha = tk.DoubleVar(value=float(self.settings.get('opacity',0.96)))
+        tk.Scale(win,from_=0.60,to=1.0,resolution=0.05,orient='horizontal',
+                 variable=alpha,bg=BG,fg=TEXT,highlightthickness=0,
+                 troughcolor=PANEL, length=280).pack()
+        startup = tk.BooleanVar(value=self.startup_script_path().exists())
+        tk.Checkbutton(win,text='Windowsログイン時に自動起動（黒い画面なし）',
+                       variable=startup,bg=BG,fg=TEXT,selectcolor=PANEL,
+                       activebackground=BG,activeforeground=TEXT).pack(anchor='w',padx=25,pady=(10,4))
+        def apply():
+            try:
+                self.set_startup(startup.get())
+                self.settings['opacity']=alpha.get()
+                self.settings['borderless']=border_var.get()
+                save_settings(self.settings)
+                self.root.attributes('-alpha',alpha.get())
+                if self.borderless != border_var.get():
+                    self.borderless = border_var.get()
+                    self.root.overrideredirect(self.borderless)
+                win.destroy()
+            except Exception as exc:
+                messagebox.showerror('設定に失敗',str(exc),parent=win)
+        self.button(win,'保存して適用',apply).pack(pady=9)
 
     def change_theme(self, name):
         self.settings['theme']=name
