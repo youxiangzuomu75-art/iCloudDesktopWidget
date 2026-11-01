@@ -27,10 +27,6 @@ jobs:
           TAG: ${{ steps.version.outputs.tag }}
         shell: bash
         run: |
-          if gh release view "$TAG" --json assets --jq '.assets[].name' 2>/dev/null | grep -qx 'icloud_widget.py'; then
-            echo "Assets already exist for $TAG; skipping"
-            exit 0
-          fi
           sha256sum icloud_widget.py > icloud_widget.py.sha256
           gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --target "$GITHUB_SHA" --title "$TAG" --generate-notes
           gh release upload "$TAG" icloud_widget.py icloud_widget.py.sha256 --clobber
