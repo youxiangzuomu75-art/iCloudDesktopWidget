@@ -1,4 +1,4 @@
-// iCloud Lock Calendar for Scriptable - v1.3.2
+// iCloud Lock Calendar for Scriptable - v1.3.3
 // iPhone-local calendars and photographs only. No Apple credentials required.
 // For automatic updates, run the LockCalendarLauncher in Scriptable.
 const automatic = !config.runsInApp || args.shortcutParameter === "auto" || args.shortcutParameter === "AUTO";
@@ -21,7 +21,7 @@ if(!fm.fileExists(folder))fm.createDirectory(folder,true);
 const photoPath=fm.joinPath(folder,"Background.jpg");
 let photo=null;
 if(SETTINGS.photo){
-  if(config.runsInApp && !automatic){
+  if(config.runsInApp && !automatic && !fm.fileExists(photoPath)){
     const prompt=new Alert();
     prompt.title="ロック画面の背景写真";
     prompt.message="好きな写真を背景にできます。";
