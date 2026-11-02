@@ -1,4 +1,4 @@
-// iCloud Lock Calendar for Scriptable - v1.3.1
+// iCloud Lock Calendar for Scriptable - v1.3.2
 // iPhone-local calendars and photographs only. No Apple credentials required.
 // For automatic updates, run the LockCalendarLauncher in Scriptable.
 const automatic = !config.runsInApp || args.shortcutParameter === "auto" || args.shortcutParameter === "AUTO";
@@ -120,9 +120,8 @@ if(!cloud.fileExists(dir))cloud.createDirectory(dir,true);
 const output=cloud.joinPath(dir,"LockCalendar.png");
 cloud.writeImage(output,image);
 // Shortcuts receives the generated PNG as an iCloud file path.
-Script.setShortcutOutput(output);
 if(config.runsInApp && !automatic){
   await Photos.save(image);
   await QuickLook.present(image);
 }
-Script.complete();
+return output;
