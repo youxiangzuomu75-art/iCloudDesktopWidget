@@ -1,7 +1,7 @@
-// iCloud Lock Calendar for Scriptable - v1.3.0
+// iCloud Lock Calendar for Scriptable - v1.3.1
 // iPhone-local calendars and photographs only. No Apple credentials required.
 // For automatic updates, run the LockCalendarLauncher in Scriptable.
-const automatic = args.shortcutParameter === "auto" || args.shortcutParameter === "AUTO";
+const automatic = !config.runsInApp || args.shortcutParameter === "auto" || args.shortcutParameter === "AUTO";
 const SETTINGS = {
   style: "midnight", maxEvents: 8, photo: true,
   shade: 0.42, excludedCalendars: []
