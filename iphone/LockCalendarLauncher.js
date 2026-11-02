@@ -26,9 +26,8 @@ try {
     a.message = "インターネット接続を確認してください。\n" + err;
     a.addAction("OK");
     await a.presentAlert();
-    Script.complete();
-    return;
+    source = null;
   }
 }
 // Execute the code as an async function, so Scriptable's calendar awaits work.
-await eval("(async () => {\n" + source + "\n})()");
+if (source) await eval("(async () => {\n" + source + "\n})()");
