@@ -1,0 +1,10 @@
+{
+  "always_run_in_app": true,
+  "icon": {
+    "color": "blue",
+    "glyph": "calendar-alt"
+  },
+  "name": "iCloud Calendar 自動更新",
+  "script": "// Lock Calendar Launcher - paste into Scriptable ONCE.\n// Automatically fetches current code from your own GitHub repository.\n// Nothing is uploaded; iCloud calendar access stays on the iPhone.\nconst SOURCE = \"https://raw.githubusercontent.com/youxiangzuomu75-art/iCloudDesktopWidget/main/iphone/iCloud_LockCalendar.js\";\nconst fm = FileManager.local();\nconst directory = fm.joinPath(fm.documentsDirectory(), \"LockCalendar\");\nif (!fm.fileExists(directory)) fm.createDirectory(directory, true);\nconst cachedFile = fm.joinPath(directory, \"cached_app.js\");\nlet source = null;\ntry {\n  const req = new Request(SOURCE);\n  req.timeoutInterval = 15;\n  const downloaded = await req.loadString();\n  if (!downloaded.startsWith(\"// iCloud Lock Calendar for Scriptable\") || downloaded.length < 4000 || downloaded.length > 250000) {\n    throw Error(\"Unexpected update file\");\n  }\n  source = downloaded;\n  fm.writeString(cachedFile, source);\n} catch (err) {\n  if (fm.fileExists(cachedFile)) {\n    source = fm.readString(cachedFile);\n    if (config.runsInApp) console.warn(\"Offline: using last downloaded version. \" + err);\n  } else {\n    const a = new Alert();\n    a.title = \"更新を取得できません\";\n    a.message = \"インターネット接続を確認してください。\\n\" + err;\n    a.addAction(\"OK\");\n    await a.presentAlert();\n    source = null;\n  }\n}\n// Execute the code as an async function, so Scriptable's calendar awaits work.\nif (source) await eval(\"(async () => {\\n\" + source + \"\\n})()\");\n",
+  "share_sheet_inputs": []
+}
