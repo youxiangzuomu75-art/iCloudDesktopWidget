@@ -30,4 +30,12 @@ try {
   }
 }
 // Execute the code as an async function, so Scriptable's calendar awaits work.
-if (source) await eval("(async () => {\n" + source + "\n})()");
+if (source) {
+  const wallpaperFile = await eval("(async () => {\n" + source + "\n})()");
+  if (!wallpaperFile || !String(wallpaperFile).endsWith(".png")) {
+    throw new Error("カレンダー画像の生成結果を受け取れませんでした。");
+  }
+  // MUST be called in this top-level script, not in the dynamically loaded module.
+  Script.setShortcutOutput(wallpaperFile);
+}
+Script.complete();
