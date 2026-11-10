@@ -1,4 +1,4 @@
-// iCloud Lock Calendar for Scriptable - v1.4.0
+// iCloud Lock Calendar for Scriptable - v1.5.0
 // iPhone-local calendars and photographs only. No Apple credentials required.
 // For automatic updates, run the LockCalendarLauncher in Scriptable.
 const automatic = !config.runsInApp || args.shortcutParameter === "auto" || args.shortcutParameter === "AUTO";
@@ -40,7 +40,11 @@ const monthStart=new Date(date.getFullYear(),date.getMonth(),1);
 const monthEnd=new Date(date.getFullYear(),date.getMonth()+2,1);
 const calendars=(await Calendar.forEvents()).filter(c=>!SETTINGS.excludedCalendars.includes(c.title));
 const events=(await CalendarEvent.between(monthStart,monthEnd,calendars)).sort((a,b)=>a.startDate-b.startDate);
-const upcoming=events.filter(e=>e.endDate>=date).slice(0,SETTINGS.maxEvents);
+// Today's and tomorrow's entries only; include all-day and multi-day events.
+const todayStart=new Date(date.getFullYear(),date.getMonth(),date.getDate());
+const afterTomorrow=new Date(date.getFullYear(),date.getMonth(),date.getDate()+2);
+const relevant=events.filter(e=>e.startDate<afterTomorrow && (e.endDate>todayStart || (e.startDate>=todayStart && e.endDate.getTime()===e.startDate.getTime())));
+const upcoming=relevant.slice(0,SETTINGS.maxEvents);
 const resolution=Device.screenResolution();
 const W=Math.min(resolution.width,resolution.height);
 const H=Math.max(resolution.width,resolution.height);
@@ -100,12 +104,12 @@ for(const e of events){
  }
 }
 // Both panels sit safely below the native iPhone clock.
-rounded(34,555,932,790,40,photo?"#0B1928":bg,photo?.55:.96);
-rounded(34,1370,932,745,40,photo?"#0B1928":bg,photo?.58:.96);
+rounded(34,555,932,790,36,"#09182C",photo?.79:.98);
+rounded(34,1370,932,745,36,"#09182C",photo?.81:.98);
 // A translucent rim gives the panels a soft, native iOS feel.
-rounded(47,568,906,2,1,"#FFFFFF",photo?.22:.11);
-rounded(47,1383,906,2,1,"#FFFFFF",photo?.20:.11);
-label("CALENDAR",80,607,390,55,27,photo?"#B9D8EE":accent,true);
+rounded(50,568,900,3,1,"#77C9FF",.55);
+rounded(50,1383,900,3,1,"#77C9FF",.48);
+label("CALENDAR",80,607,390,55,27,"#8ACFFF",true);
 label(now.getFullYear()+"  /  "+String(now.getMonth()+1).padStart(2,"0"),80,682,700,75,54,textColor,false);
 rule(80,773,840);
 const weekdays=["月","火","水","木","金","土","日"];
@@ -116,23 +120,24 @@ for(let n=1;n<=days;n++){
  const c=n-1+offset;
  const row=Math.floor(c/7),col=c%7;
  const x=91+col*120,y=896+row*70;
- if(n===now.getDate())rounded(x-12,y-5,69,64,21,photo?"#EDF7FF":accent,.95);
- label(n,x,y,65,45,31,n===now.getDate()?"#183247":textColor,n===now.getDate());
+ if(n===now.getDate())rounded(x-12,y-5,69,64,17,"#2D75BC",.95);
+ label(n,x,y,65,45,31,textColor,n===now.getDate());
  const k=now.getFullYear()+"-"+now.getMonth()+"-"+n;
  const num=Math.min(3,counts.get(k)||0);
  for(let j=0;j<num;j++)
-  ellipse(x+j*13,y+47,7,7,n===now.getDate()?"#325F87":photo?"#C2E8FF":accent,.9);
+  ellipse(x+j*13,y+47,7,7,"#76C7FF",.95);
 }
-label("UPCOMING",80,1414,460,54,28,photo?"#B9D8EE":accent,true);
-label(upcoming.length+" EVENTS",730,1416,190,50,23,mutedColor,false);
+label("今日・明日の予定",80,1414,470,54,29,"#8ACFFF",true);
+label(upcoming.length+" 件",764,1416,170,50,24,mutedColor,false);
 rule(80,1482,840);
-if(upcoming.length===0)label("今後の予定はありません",84,1545,825,70,34,textColor);
+if(upcoming.length===0)label("今日と明日の予定はありません",84,1545,825,70,32,textColor);
 const rowHeight=74;
 for(let i=0;i<upcoming.length;i++){
  const e=upcoming[i],d=e.startDate,y=1516+i*rowHeight;
- if(i%2===0)rounded(68,y-4,864,66,17,"#FFFFFF",photo?.065:.055);
- const dateText=(d.getMonth()+1)+"/"+String(d.getDate()).padStart(2,"0");
- label(dateText,87,y+7,110,49,29,photo?"#B9D8EE":accent,true);
+ if(i%2===0)rounded(68,y-4,864,66,15,"#2C5D8C",.18);
+ const actualDay=e.startDate<todayStart?todayStart:d;
+ const dateText=actualDay.toDateString()===todayStart.toDateString()?"今日":"明日";
+ label(dateText,87,y+7,110,49,29,"#8ACFFF",true);
  label(formatTime(e),202,y+8,130,48,28,mutedColor,false);
  label(title(e.title,20),345,y+7,575,52,30,textColor,i===0);
 }
