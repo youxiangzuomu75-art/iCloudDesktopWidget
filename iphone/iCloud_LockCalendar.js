@@ -1,4 +1,4 @@
-// iCloud Lock Calendar for Scriptable - v1.3.3
+// iCloud Lock Calendar for Scriptable - v1.3.4
 // iPhone-local calendars and photographs only. No Apple credentials required.
 // For automatic updates, run the LockCalendarLauncher in Scriptable.
 const automatic = !config.runsInApp || args.shortcutParameter === "auto" || args.shortcutParameter === "AUTO";
@@ -71,9 +71,9 @@ if(photo){
  const scale=Math.max(W/iw,H/ih);
  const dw=iw*scale,dh=ih*scale;
  ctx.drawImageInRect(photo,new Rect((W-dw)/2,(H-dh)/2,dw,dh));
- box(0,430,1000,1730,"#07101F",SETTINGS.shade);
- box(25,550,950,760,"#07101F",0.32);
- box(25,1380,950,760,"#07101F",0.32);
+ box(0,540,1000,1620,"#07101F",SETTINGS.shade);
+ box(25,640,950,720,"#07101F",0.32);
+ box(25,1400,950,760,"#07101F",0.32);
 }
 const textColor=photo?"#ffffff":fg;
 const now=date;
@@ -88,27 +88,27 @@ for(const e of events){
  }
 }
 box(0,0,1000,14,accent);
-label("MY CALENDAR",65,450,870,65,36,accent,true);
-label(now.getFullYear()+" / "+String(now.getMonth()+1).padStart(2,"0"),65,570,870,80,57,textColor,true);
+label("MY CALENDAR",65,580,870,65,36,accent,true);
+label(now.getFullYear()+" / "+String(now.getMonth()+1).padStart(2,"0"),65,680,870,80,57,textColor,true);
 const weekdays=["月","火","水","木","金","土","日"];
-for(let i=0;i<7;i++)label(weekdays[i],84+i*124,684,94,50,30,textColor,true);
+for(let i=0;i<7;i++)label(weekdays[i],84+i*124,795,94,50,30,textColor,true);
 const offset=(monthStart.getDay()+6)%7;
 const days=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
 for(let n=1;n<=days;n++){
  const c=n-1+offset;
  const row=Math.floor(c/7),col=c%7;
- const x=82+col*124,y=780+row*75;
+ const x=82+col*124,y=885+row*72;
  if(n===now.getDate())box(x-12,y-5,84,67,todayColor);
  label(n,x,y,65,49,34,textColor,n===now.getDate());
  const k=now.getFullYear()+"-"+now.getMonth()+"-"+n;
  const num=Math.min(3,counts.get(k)||0);
  for(let j=0;j<num;j++)box(x+j*13,y+52,7,7,accent);
 }
-label("UPCOMING",65,1415,880,67,40,accent,true);
+label("UPCOMING",65,1440,880,67,40,accent,true);
 if(upcoming.length===0)label("今後の予定はありません",75,1525,830,80,32,textColor);
 const line=Math.min(78,Math.floor(560/Math.max(1,upcoming.length)));
 for(let i=0;i<upcoming.length;i++){
- const e=upcoming[i],d=e.startDate,y=1515+i*line;
+ const e=upcoming[i],d=e.startDate,y=1520+i*line;
  label((d.getMonth()+1)+"/"+d.getDate(),65,y,115,54,29,accent,true);
  label(formatTime(e),182,y,125,54,29,textColor);
  label(title(e.title),320,y,625,55,30,textColor,i===0);
