@@ -1,109 +1,155 @@
-// iCloud Lock Calendar for Scriptable - v1.6.0
-// Minimal Black: monthly calendar and today/tomorrow appointments.
-// Auto-loaded by LockCalendarLauncher.js; no credentials leave this iPhone.
-const STYLE = {
-  bg:"#000000", white:"#FFFFFF", gray:"#A7A7A7", accent:"#BCA77B",
-  panel:"#202020", panelOpacity:0.94, maxEvents:8, displayedEvents:4
+// iCloud Lock Calendar for Scriptable - v1.5.0
+// iPhone-local calendars and photographs only. No Apple credentials required.
+// For automatic updates, run the LockCalendarLauncher in Scriptable.
+const automatic = !config.runsInApp || args.shortcutParameter === "auto" || args.shortcutParameter === "AUTO";
+const SETTINGS = {
+  style: "midnight", maxEvents: 8, photo: true,
+  shade: 0.42, excludedCalendars: []
 };
-const now=new Date();
-const today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
-const tomorrow=new Date(now.getFullYear(),now.getMonth(),now.getDate()+1);
-const dayAfter=new Date(now.getFullYear(),now.getMonth(),now.getDate()+2);
-const calendars=await Calendar.forEvents();
-const events=(await CalendarEvent.between(today,dayAfter,calendars))
-  .filter(e=>e.startDate<dayAfter && e.endDate>today)
-  .sort((a,b)=>a.startDate-b.startDate);
-const W=Math.min(Device.screenResolution().width,Device.screenResolution().height);
-const H=Math.max(Device.screenResolution().width,Device.screenResolution().height);
-const ctx=new DrawContext();
-ctx.size=new Size(W,H);
-ctx.opaque=true;
-ctx.respectScreenScale=false;
-const sx=v=>W*v/1000, sy=v=>H*v/2160;
-function color(hex,alpha=1){return new Color(hex,alpha);}
-function rect(x,y,w,h,fill,alpha=1){
-  ctx.setFillColor(color(fill,alpha));
-  ctx.fillRect(new Rect(sx(x),sy(y),sx(w),sy(h)));
-}
-function rounded(x,y,w,h,r,fill,alpha=1){
-  const p=new Path();
-  p.addRoundedRect(new Rect(sx(x),sy(y),sx(w),sy(h)),sx(r),sx(r));
-  ctx.addPath(p); ctx.setFillColor(color(fill,alpha)); ctx.fillPath();
-}
-function text(value,x,y,w,h,size,fill,bold=false){
-  ctx.setTextColor(color(fill));
-  ctx.setFont(bold?Font.boldSystemFont(sx(size)):Font.systemFont(sx(size)));
-  ctx.drawTextInRect(String(value),new Rect(sx(x),sy(y),sx(w),sy(h)));
-}
-function line(x,y,w,fill=STYLE.gray,alpha=.35){
-  rect(x,y,w,1.5,fill,alpha);
-}
-function timeLabel(e){
-  if(e.isAllDay)return "終日";
-  const d=e.startDate;
-  return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");
-}
-function shorten(name,limit=20){
-  const c=Array.from(name||"（タイトルなし）");
-  return c.length>limit?c.slice(0,limit-1).join("")+"…":c.join("");
-}
-// Render the black wallpaper; iOS supplies the clock independently.
-rect(0,0,1000,2160,STYLE.bg);
-// Keep the upper 25% entirely free for the native iPhone clock.
-const top=570;
-rect(76,top,42,4,STYLE.accent);
-const daysOfWeek=["日","月","火","水","木","金","土"];
-text((now.getMonth()+1)+"月"+now.getDate()+"日",
-  76,top+44,690,110,78,STYLE.white,true);
-text(daysOfWeek[now.getDay()]+"曜日",
-  78,top+163,500,64,38,STYLE.gray);
-line(76,top+255,848);
-text(now.getFullYear()+" / "+String(now.getMonth()+1).padStart(2,"0"),
-  76,top+305,640,66,39,STYLE.white,true);
-const monthStart=new Date(now.getFullYear(),now.getMonth(),1);
-const offset=(monthStart.getDay()+6)%7;
-const countDays=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
-const dayNames=["月","火","水","木","金","土","日"];
-for(let col=0;col<7;col++){
-  text(dayNames[col],98+col*125,top+412,75,44,27,STYLE.gray);
-}
-for(let day=1;day<=countDays;day++){
-  const index=offset+day-1;
-  const col=index%7,row=Math.floor(index/7);
-  const x=98+col*125,y=top+477+row*64;
-  if(day===now.getDate()) rounded(x-17,y-7,72,55,15,STYLE.accent);
-  text(day,x,y,68,44,31,
-       day===now.getDate()?STYLE.bg:STYLE.white,
-       day===now.getDate());
-}
-// The separate subdued charcoal schedule card contains only today/tomorrow.
-const cardY=1518,cardH=500;
-rounded(48,cardY,904,cardH,36,STYLE.panel,STYLE.panelOpacity);
-text("TODAY / TOMORROW",89,cardY+40,720,55,30,STYLE.accent,true);
-line(90,cardY+112,820,STYLE.gray,.28);
-const visible=events.slice(0,STYLE.displayedEvents);
-if(visible.length===0){
-  text("今日・明日の予定はありません",
-       90,cardY+161,800,65,32,STYLE.white);
-}
-for(let i=0;i<visible.length;i++){
-  const e=visible[i],y=cardY+143+i*83;
-  // Multi-day events show the portion that falls within this two-day window.
-  const labelDay=e.startDate<tomorrow?"今日":"明日";
-  text(labelDay,90,y+5,103,44,27,STYLE.accent,true);
-  text(timeLabel(e),200,y+5,145,44,27,STYLE.gray);
-  text(shorten(e.title),355,y,545,54,31,STYLE.white);
-  if(i<visible.length-1) line(90,y+68,820,STYLE.gray,.15);
-}
-const image=ctx.getImage();
-// Preserve the established location used by the existing Shortcuts flow.
-const fm=FileManager.iCloud();
+const THEMES = {
+ midnight: ["#121b2b","#dfeeff","#88c9ff","#29465f"],
+ ocean: ["#083245","#e6faff","#67d9df","#176677"],
+ forest: ["#133025","#e3ffeb","#8cdc9c","#32664c"],
+ sakura: ["#40243a","#fff0f7","#ffacd4","#79415e"],
+ ivory: ["#f8f1df","#353d49","#246b99","#e1d2ae"]
+};
+const theme=THEMES[SETTINGS.style]||THEMES.midnight;
+const [bg,fg,accent,todayColor]=theme;
+const fm=FileManager.local();
 const folder=fm.joinPath(fm.documentsDirectory(),"LockCalendar");
 if(!fm.fileExists(folder))fm.createDirectory(folder,true);
-const output=fm.joinPath(folder,"LockCalendar.png");
-fm.writeImage(output,image);
-// Launcher receives this return value; it handles Script.setShortcutOutput.
-if(config.runsInApp && args.shortcutParameter!=="auto"){
+const photoPath=fm.joinPath(folder,"Background.jpg");
+let photo=null;
+if(SETTINGS.photo){
+  if(config.runsInApp && !automatic && !fm.fileExists(photoPath)){
+    const prompt=new Alert();
+    prompt.title="ロック画面の背景写真";
+    prompt.message="好きな写真を背景にできます。";
+    prompt.addAction("保存済みの写真を使用");
+    prompt.addAction("新しい写真を選択");
+    const choice=await prompt.presentSheet();
+    if(choice===1){
+      photo=await Photos.fromLibrary();
+      fm.writeImage(photoPath,photo);
+    }
+  }
+  if(!photo && fm.fileExists(photoPath))photo=fm.readImage(photoPath);
+}
+const date=new Date();
+const monthStart=new Date(date.getFullYear(),date.getMonth(),1);
+const monthEnd=new Date(date.getFullYear(),date.getMonth()+2,1);
+const calendars=(await Calendar.forEvents()).filter(c=>!SETTINGS.excludedCalendars.includes(c.title));
+const events=(await CalendarEvent.between(monthStart,monthEnd,calendars)).sort((a,b)=>a.startDate-b.startDate);
+// Today's and tomorrow's entries only; include all-day and multi-day events.
+const todayStart=new Date(date.getFullYear(),date.getMonth(),date.getDate());
+const afterTomorrow=new Date(date.getFullYear(),date.getMonth(),date.getDate()+2);
+const relevant=events.filter(e=>e.startDate<afterTomorrow && (e.endDate>todayStart || (e.startDate>=todayStart && e.endDate.getTime()===e.startDate.getTime())));
+const upcoming=relevant.slice(0,SETTINGS.maxEvents);
+const resolution=Device.screenResolution();
+const W=Math.min(resolution.width,resolution.height);
+const H=Math.max(resolution.width,resolution.height);
+const xx=n=>n*W/1000, yy=n=>n*H/2160;
+const ctx=new DrawContext();
+ctx.size=new Size(W,H);ctx.opaque=true;ctx.respectScreenScale=false;
+function box(x,y,w,h,color,alpha=1){
+  ctx.setFillColor(new Color(color,alpha));
+  ctx.fillRect(new Rect(xx(x),yy(y),xx(w),yy(h)));
+}
+function label(t,x,y,w,h,size,color=fg,isBold=false){
+  ctx.setFont(isBold?Font.boldSystemFont(xx(size)):Font.systemFont(xx(size)));
+  ctx.setTextColor(new Color(color));
+  ctx.drawTextInRect(String(t),new Rect(xx(x),yy(y),xx(w),yy(h)));
+}
+function formatTime(e){
+  if(e.isAllDay)return "終日";
+  let d=e.startDate;
+  return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");
+}
+function title(s,n=18){
+  let chars=Array.from(s||"（タイトルなし）");
+  return chars.length>n?chars.slice(0,n-1).join("")+"…":chars.join("");
+}
+function rounded(x,y,w,h,r,color,alpha=1){
+ const p=new Path();
+ p.addRoundedRect(new Rect(xx(x),yy(y),xx(w),yy(h)),xx(r),yy(r));
+ ctx.addPath(p);ctx.setFillColor(new Color(color,alpha));ctx.fillPath();
+}
+function ellipse(x,y,w,h,color,alpha=1){
+ ctx.setFillColor(new Color(color,alpha));
+ ctx.fillEllipse(new Rect(xx(x),yy(y),xx(w),yy(h)));
+}
+function rule(x,y,w,color="#FFFFFF",alpha=.15){
+ box(x,y,w,2,color,alpha);
+}
+box(0,0,1000,2160,bg);
+if(photo){
+ const iw=photo.size.width,ih=photo.size.height;
+ const scale=Math.max(W/iw,H/ih);
+ const dw=iw*scale,dh=ih*scale;
+ ctx.drawImageInRect(photo,new Rect((W-dw)/2,(H-dh)/2,dw,dh));
+ // Preserve the full photograph, with a subtle contrast layer below the iPhone clock.
+ box(0,520,1000,1640,"#07121B",.17);
+}
+const textColor=photo?"#F7FAFF":fg;
+const mutedColor=photo?"#D8E5EF":fg;
+const now=date;
+const counts=new Map();
+for(const e of events){
+ let d=new Date(e.startDate.getFullYear(),e.startDate.getMonth(),e.startDate.getDate());
+ const end=new Date(e.endDate.getFullYear(),e.endDate.getMonth(),e.endDate.getDate());
+ if(e.isAllDay && end>d)end.setDate(end.getDate()-1);
+ for(let n=0;n<60&&d<=end;n++,d.setDate(d.getDate()+1)){
+  const k=d.getFullYear()+"-"+d.getMonth()+"-"+d.getDate();
+  counts.set(k,(counts.get(k)||0)+1);
+ }
+}
+// Both panels sit safely below the native iPhone clock.
+rounded(34,555,932,790,36,"#09182C",photo?.79:.98);
+rounded(34,1370,932,745,36,"#09182C",photo?.81:.98);
+// A translucent rim gives the panels a soft, native iOS feel.
+rounded(50,568,900,3,1,"#77C9FF",.55);
+rounded(50,1383,900,3,1,"#77C9FF",.48);
+label("CALENDAR",80,607,390,55,27,"#8ACFFF",true);
+label(now.getFullYear()+"  /  "+String(now.getMonth()+1).padStart(2,"0"),80,682,700,75,54,textColor,false);
+rule(80,773,840);
+const weekdays=["月","火","水","木","金","土","日"];
+for(let i=0;i<7;i++)label(weekdays[i],94+i*120,812,87,46,25,mutedColor,false);
+const offset=(monthStart.getDay()+6)%7;
+const days=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
+for(let n=1;n<=days;n++){
+ const c=n-1+offset;
+ const row=Math.floor(c/7),col=c%7;
+ const x=91+col*120,y=896+row*70;
+ if(n===now.getDate())rounded(x-12,y-5,69,64,17,"#2D75BC",.95);
+ label(n,x,y,65,45,31,textColor,n===now.getDate());
+ const k=now.getFullYear()+"-"+now.getMonth()+"-"+n;
+ const num=Math.min(3,counts.get(k)||0);
+ for(let j=0;j<num;j++)
+  ellipse(x+j*13,y+47,7,7,"#76C7FF",.95);
+}
+label("今日・明日の予定",80,1414,470,54,29,"#8ACFFF",true);
+label(upcoming.length+" 件",764,1416,170,50,24,mutedColor,false);
+rule(80,1482,840);
+if(upcoming.length===0)label("今日と明日の予定はありません",84,1545,825,70,32,textColor);
+const rowHeight=74;
+for(let i=0;i<upcoming.length;i++){
+ const e=upcoming[i],d=e.startDate,y=1516+i*rowHeight;
+ if(i%2===0)rounded(68,y-4,864,66,15,"#2C5D8C",.18);
+ const actualDay=e.startDate<todayStart?todayStart:d;
+ const dateText=actualDay.toDateString()===todayStart.toDateString()?"今日":"明日";
+ label(dateText,87,y+7,110,49,29,"#8ACFFF",true);
+ label(formatTime(e),202,y+8,130,48,28,mutedColor,false);
+ label(title(e.title,20),345,y+7,575,52,30,textColor,i===0);
+}
+const image=ctx.getImage();
+const cloud=FileManager.iCloud();
+const dir=cloud.joinPath(cloud.documentsDirectory(),"LockCalendar");
+if(!cloud.fileExists(dir))cloud.createDirectory(dir,true);
+const output=cloud.joinPath(dir,"LockCalendar.png");
+cloud.writeImage(output,image);
+// Shortcuts receives the generated PNG as an iCloud file path.
+if(config.runsInApp && !automatic){
+  await Photos.save(image);
   await QuickLook.present(image);
 }
 return output;
