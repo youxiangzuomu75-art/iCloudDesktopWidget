@@ -1,4 +1,4 @@
-// iCloud Lock Calendar for Scriptable - v1.3.4
+// iCloud Lock Calendar for Scriptable - v1.4.0
 // iPhone-local calendars and photographs only. No Apple credentials required.
 // For automatic updates, run the LockCalendarLauncher in Scriptable.
 const automatic = !config.runsInApp || args.shortcutParameter === "auto" || args.shortcutParameter === "AUTO";
@@ -65,17 +65,29 @@ function title(s,n=18){
   let chars=Array.from(s||"（タイトルなし）");
   return chars.length>n?chars.slice(0,n-1).join("")+"…":chars.join("");
 }
+function rounded(x,y,w,h,r,color,alpha=1){
+ const p=new Path();
+ p.addRoundedRect(new Rect(xx(x),yy(y),xx(w),yy(h)),xx(r),yy(r));
+ ctx.addPath(p);ctx.setFillColor(new Color(color,alpha));ctx.fillPath();
+}
+function ellipse(x,y,w,h,color,alpha=1){
+ ctx.setFillColor(new Color(color,alpha));
+ ctx.fillEllipse(new Rect(xx(x),yy(y),xx(w),yy(h)));
+}
+function rule(x,y,w,color="#FFFFFF",alpha=.15){
+ box(x,y,w,2,color,alpha);
+}
 box(0,0,1000,2160,bg);
 if(photo){
  const iw=photo.size.width,ih=photo.size.height;
  const scale=Math.max(W/iw,H/ih);
  const dw=iw*scale,dh=ih*scale;
  ctx.drawImageInRect(photo,new Rect((W-dw)/2,(H-dh)/2,dw,dh));
- box(0,540,1000,1620,"#07101F",SETTINGS.shade);
- box(25,640,950,720,"#07101F",0.32);
- box(25,1400,950,760,"#07101F",0.32);
+ // Preserve the full photograph, with a subtle contrast layer below the iPhone clock.
+ box(0,520,1000,1640,"#07121B",.17);
 }
-const textColor=photo?"#ffffff":fg;
+const textColor=photo?"#F7FAFF":fg;
+const mutedColor=photo?"#D8E5EF":fg;
 const now=date;
 const counts=new Map();
 for(const e of events){
@@ -87,31 +99,42 @@ for(const e of events){
   counts.set(k,(counts.get(k)||0)+1);
  }
 }
-box(0,0,1000,14,accent);
-label("MY CALENDAR",65,580,870,65,36,accent,true);
-label(now.getFullYear()+" / "+String(now.getMonth()+1).padStart(2,"0"),65,680,870,80,57,textColor,true);
+// Both panels sit safely below the native iPhone clock.
+rounded(34,555,932,790,40,photo?"#0B1928":bg,photo?.55:.96);
+rounded(34,1370,932,745,40,photo?"#0B1928":bg,photo?.58:.96);
+// A translucent rim gives the panels a soft, native iOS feel.
+rounded(47,568,906,2,1,"#FFFFFF",photo?.22:.11);
+rounded(47,1383,906,2,1,"#FFFFFF",photo?.20:.11);
+label("CALENDAR",80,607,390,55,27,photo?"#B9D8EE":accent,true);
+label(now.getFullYear()+"  /  "+String(now.getMonth()+1).padStart(2,"0"),80,682,700,75,54,textColor,false);
+rule(80,773,840);
 const weekdays=["月","火","水","木","金","土","日"];
-for(let i=0;i<7;i++)label(weekdays[i],84+i*124,795,94,50,30,textColor,true);
+for(let i=0;i<7;i++)label(weekdays[i],94+i*120,812,87,46,25,mutedColor,false);
 const offset=(monthStart.getDay()+6)%7;
 const days=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
 for(let n=1;n<=days;n++){
  const c=n-1+offset;
  const row=Math.floor(c/7),col=c%7;
- const x=82+col*124,y=885+row*72;
- if(n===now.getDate())box(x-12,y-5,84,67,todayColor);
- label(n,x,y,65,49,34,textColor,n===now.getDate());
+ const x=91+col*120,y=896+row*70;
+ if(n===now.getDate())rounded(x-12,y-5,69,64,21,photo?"#EDF7FF":accent,.95);
+ label(n,x,y,65,45,31,n===now.getDate()?"#183247":textColor,n===now.getDate());
  const k=now.getFullYear()+"-"+now.getMonth()+"-"+n;
  const num=Math.min(3,counts.get(k)||0);
- for(let j=0;j<num;j++)box(x+j*13,y+52,7,7,accent);
+ for(let j=0;j<num;j++)
+  ellipse(x+j*13,y+47,7,7,n===now.getDate()?"#325F87":photo?"#C2E8FF":accent,.9);
 }
-label("UPCOMING",65,1440,880,67,40,accent,true);
-if(upcoming.length===0)label("今後の予定はありません",75,1525,830,80,32,textColor);
-const line=Math.min(78,Math.floor(560/Math.max(1,upcoming.length)));
+label("UPCOMING",80,1414,460,54,28,photo?"#B9D8EE":accent,true);
+label(upcoming.length+" EVENTS",730,1416,190,50,23,mutedColor,false);
+rule(80,1482,840);
+if(upcoming.length===0)label("今後の予定はありません",84,1545,825,70,34,textColor);
+const rowHeight=74;
 for(let i=0;i<upcoming.length;i++){
- const e=upcoming[i],d=e.startDate,y=1520+i*line;
- label((d.getMonth()+1)+"/"+d.getDate(),65,y,115,54,29,accent,true);
- label(formatTime(e),182,y,125,54,29,textColor);
- label(title(e.title),320,y,625,55,30,textColor,i===0);
+ const e=upcoming[i],d=e.startDate,y=1516+i*rowHeight;
+ if(i%2===0)rounded(68,y-4,864,66,17,"#FFFFFF",photo?.065:.055);
+ const dateText=(d.getMonth()+1)+"/"+String(d.getDate()).padStart(2,"0");
+ label(dateText,87,y+7,110,49,29,photo?"#B9D8EE":accent,true);
+ label(formatTime(e),202,y+8,130,48,28,mutedColor,false);
+ label(title(e.title,20),345,y+7,575,52,30,textColor,i===0);
 }
 const image=ctx.getImage();
 const cloud=FileManager.iCloud();
