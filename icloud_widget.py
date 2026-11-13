@@ -2,6 +2,7 @@
 import calendar
 import datetime as dt
 import json
+import re
 import subprocess
 import tempfile
 import urllib.request
@@ -11,14 +12,14 @@ import queue
 import sys
 import threading
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, colorchooser
 from pathlib import Path
 
 import caldav
 import keyring
 
 APP = 'iCloud Desktop Widget'
-VERSION = '2.4.0'
+VERSION = '2.5.0'
 UPDATE_API = 'https://api.github.com/repos/{repo}/releases/latest'
 
 SERVICE = 'iCloudDesktopWidget.CalDAV'
@@ -75,6 +76,18 @@ def load_settings():
 def save_settings(data):
     CONFIG.parent.mkdir(parents=True, exist_ok=True)
     CONFIG.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
+
+
+def calendar_color(calendar_id, calendar_name, settings):
+    """Stable default color per iCloud calendar, with user overrides."""
+    overrides = settings.get('calendar_colors', {})
+    saved = overrides.get(calendar_id)
+    if isinstance(saved, str) and re.fullmatch(r'#[0-9a-fA-F]{6}', saved):
+        return saved
+    # Calendar URL is stable across renames. Reserved palette is easy to read
+    # on both dark and light themes.
+    digest = hashlib.sha256(calendar_id.encode('utf-8')).digest()
+    return PALETTE[int.from_bytes(digest[:4], 'big') % len(PALETTE)]
 
 
 def event_time(value):
@@ -144,6 +157,7 @@ class Widget:
         self.button(toolbar,'更新確認',self.check_updates_manual).pack(side='left',padx=2)
         self.button(toolbar,'更新',self.refresh).pack(side='left',padx=2)
         self.button(toolbar,'選択',self.pick_calendars).pack(side='left',padx=2)
+        self.button(toolbar,'色分け',self.edit_calendar_colors).pack(side='left',padx=2)
         self.theme_var=tk.StringVar(value=self.settings.get('theme','ダーク'))
         menu=tk.OptionMenu(toolbar,self.theme_var,*THEMES.keys(),command=self.change_theme)
         menu.configure(bg=PANEL,fg=TEXT,activebackground=PANEL,activeforeground=TEXT,
@@ -365,6 +379,7 @@ class Widget:
             self.gridframe.grid_columnconfigure(col,weight=1,uniform='days')
         today=dt.date.today()
         count={}
+        dots={}
         selected=set(self.settings.get('selected',[]))
         for e in self.events:
             if selected and e['cal_id'] not in selected: continue
@@ -372,7 +387,11 @@ class Widget:
             if e['all_day'] and end>start: end-=dt.timedelta(days=1)
             d=start
             while d<=end and (d-start).days<370:
-                count[d]=count.get(d,0)+1; d+=dt.timedelta(days=1)
+                count[d]=count.get(d,0)+1
+                color=calendar_color(e['cal_id'],e['cal_name'],self.settings)
+                if color not in dots.setdefault(d,[]):
+                    dots[d].append(color)
+                d+=dt.timedelta(days=1)
         for row,week in enumerate(calendar.Calendar(firstweekday=0).monthdatescalendar(y,m),start=1):
             for col,date in enumerate(week):
                 current=(date.month==m)
@@ -383,7 +402,11 @@ class Widget:
                 cell.grid_propagate(False)
                 tk.Label(cell,text=str(date.day),fg=f,bg=bg,font=('Yu Gothic UI',10,'bold' if date==today else 'normal')).pack(pady=(4,0))
                 if count.get(date):
-                    tk.Label(cell,text='●'*min(3,count[date]),fg=ACCENT,bg=bg,font=('Arial',7)).pack()
+                    marks=tk.Frame(cell,bg=bg)
+                    marks.pack(pady=(1,0))
+                    for dot_color in dots.get(date,[])[:3]:
+                        tk.Label(marks,text='●',fg=dot_color,bg=bg,
+                                 font=('Arial',7)).pack(side='left')
         self.render_events()
 
     def render_events(self):
@@ -402,7 +425,11 @@ class Widget:
                 self.listbox.insert('end',f'\n{day.month}/{day.day}（{"月火水木金土日"[day.weekday()]}）\n','date')
                 previous=day
             time='終日' if e['all_day'] else e['start'].strftime('%H:%M')
-            self.listbox.insert('end',f'  {time}  {e["summary"]}\n')
+            color=calendar_color(e['cal_id'],e['cal_name'],self.settings)
+            tag='calendar_'+hashlib.sha1(e['cal_id'].encode('utf-8')).hexdigest()[:12]
+            self.listbox.tag_configure(tag,foreground=color,font=('Yu Gothic UI',10,'bold'))
+            self.listbox.insert('end','  ●  ',tag)
+            self.listbox.insert('end',f'{time}  {e["summary"]}\n')
             self.listbox.insert('end',f'          {e["cal_name"]}\n','sub')
         self.listbox.config(state='disabled')
 
@@ -520,6 +547,52 @@ start "" "%~dp0start_calendar.bat"
             win.destroy();self.refresh()
         self.button(win,'接続して予定を取得',ok).pack(pady=8)
         win.grab_set()
+
+    def edit_calendar_colors(self):
+        if not self.calendars:
+            messagebox.showinfo('カレンダー未取得', 'iCloudのカレンダーを取得してから設定できます。')
+            return
+        win=tk.Toplevel(self.root)
+        win.title('カレンダーごとの色分け')
+        win.geometry('430x' + str(min(600, max(270, len(self.calendars)*48+135))))
+        win.configure(bg=BG)
+        tk.Label(win,text='カレンダーごとに表示色を設定',bg=BG,fg=TEXT,
+                 font=('Yu Gothic UI',11,'bold')).pack(pady=(13,4))
+        tk.Label(win,text='月間のドットと予定一覧に同じ色を使います。',
+                 bg=BG,fg=SUB,font=('Yu Gothic UI',9)).pack(pady=(0,8))
+        body=tk.Frame(win,bg=BG)
+        body.pack(fill='both',expand=True,padx=18)
+        chosen=dict(self.settings.get('calendar_colors',{}))
+        for cal in self.calendars:
+            cid,name=cal['id'],cal['name']
+            row=tk.Frame(body,bg=BG)
+            row.pack(fill='x',pady=4)
+            tk.Label(row,text=name,bg=BG,fg=TEXT,anchor='w',
+                     font=('Yu Gothic UI',10)).pack(side='left',fill='x',expand=True)
+            sample=tk.Label(row,text='  ●  ',bg=BG,fg=calendar_color(cid,name,{'calendar_colors':chosen}),
+                            font=('Arial',15,'bold'))
+            sample.pack(side='right')
+            def choose(key=cid,title=name,swatch=sample):
+                initial=calendar_color(key,title,{'calendar_colors':chosen})
+                result=colorchooser.askcolor(color=initial,title=title+' の色',parent=win)
+                if result[1]:
+                    chosen[key]=result[1]
+                    swatch.configure(fg=result[1])
+            self.button(row,'変更',choose,width=5).pack(side='right',padx=6)
+        actions=tk.Frame(win,bg=BG);actions.pack(pady=10)
+        def reset():
+            chosen.clear()
+            self.settings['calendar_colors']={}
+            save_settings(self.settings)
+            win.destroy()
+            self.draw()
+        def save():
+            self.settings['calendar_colors']=chosen
+            save_settings(self.settings)
+            win.destroy()
+            self.draw()
+        self.button(actions,'自動配色に戻す',reset).pack(side='left',padx=5)
+        self.button(actions,'保存して反映',save).pack(side='left',padx=5)
 
     def pick_calendars(self):
         if not self.calendars:
