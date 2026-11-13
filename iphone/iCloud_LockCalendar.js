@@ -1,4 +1,4 @@
-// iCloud Lock Calendar for Scriptable - v1.7.0
+// iCloud Lock Calendar for Scriptable - v1.7.1
 // iPhone-local calendars and photographs only. No Apple credentials required.
 // For automatic updates, run the LockCalendarLauncher in Scriptable.
 const automatic = !config.runsInApp || args.shortcutParameter === "auto" || args.shortcutParameter === "AUTO";
@@ -82,10 +82,10 @@ function rule(x,y,w,color="#FFFFFF",alpha=.15){
  box(x,y,w,2,color,alpha);
 }
 // Refined editorial layout – photo and native iPhone clock are preserved.
-const ink="#111315",gold="#C7A86A",ivory="#F7F7F5",muted="#C8C5BE";
+const ink="#111315",gold="#DEC184",ivory="#FFFFFF",muted="#E2E0DD";
 function elegant(value,x,y,w,h,size,hex,bold=false,align="left",light=false){
  ctx.setTextColor(new Color(hex));
- ctx.setFont(light?Font.lightSystemFont(xx(size)):bold?Font.boldSystemFont(xx(size)):Font.systemFont(xx(size)));
+ ctx.setFont(bold?Font.boldSystemFont(xx(size)):Font.systemFont(xx(size)));
  if(align==="center")ctx.setTextAlignedCenter();
  else if(align==="right")ctx.setTextAlignedRight();
  else ctx.setTextAlignedLeft();
@@ -112,14 +112,14 @@ for(const e of events){
  }
 }
 const calendarY=585;
-rounded(58,calendarY,884,760,34,ink,photo?.50:.94);
+rounded(58,calendarY,884,760,34,ink,photo?.76:.97);
 box(86,calendarY+88,160,3,gold,.95);
-elegant("C A L E N D A R",86,calendarY+31,410,48,24,gold);
+elegant("C A L E N D A R",86,calendarY+31,410,48,26,gold,true);
 elegant(now.getFullYear()+" / "+String(now.getMonth()+1).padStart(2,"0"),
-  86,calendarY+109,600,83,51,ivory,false,"left",true);
+  86,calendarY+109,600,83,55,ivory,false,"left");
 const weekdayNames=["MON","TUE","WED","THU","FRI","SAT","SUN"];
 for(let i=0;i<7;i++){
- elegant(weekdayNames[i],97+i*118,calendarY+212,86,37,19,muted,false,"center");
+ elegant(weekdayNames[i],97+i*118,calendarY+212,86,40,22,muted,false,"center");
 }
 const offset=(monthStart.getDay()+6)%7;
 const days=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
@@ -130,18 +130,18 @@ for(let day=1;day<=days;day++){
  const x=97+col*118,y=calendarY+279+row*step;
  const isToday=day===now.getDate();
  if(isToday)rounded(x+9,y-5,61,54,15,ivory,.95);
- elegant(day,x,y,80,47,30,isToday?"#111315":ivory,isToday,"center",!isToday);
+ elegant(day,x,y,80,47,33,isToday?"#111315":ivory,isToday,"center");
  const key=now.getFullYear()+"-"+now.getMonth()+"-"+day;
  const num=Math.min(3,counts.get(key)||0);
  for(let j=0;j<num;j++)ellipse(x+33+j*11,y+50,6,6,gold,.96);
 }
 const scheduleY=1385;
-rounded(58,scheduleY,884,546,34,"#15181B",photo?.62:.95);
+rounded(58,scheduleY,884,546,34,"#15181B",photo?.82:.97);
 box(86,scheduleY+83,185,3,gold,.95);
-elegant("T O D A Y  /  T O M O R R O W",86,scheduleY+30,720,54,24,gold);
+elegant("T O D A Y  /  T O M O R R O W",86,scheduleY+30,720,54,25,gold,true);
 const shown=upcoming.slice(0,4);
 if(shown.length===0){
- elegant("今日・明日の予定はありません",90,scheduleY+150,760,72,31,ivory,false,"left",true);
+ elegant("今日・明日の予定はありません",90,scheduleY+150,760,72,33,ivory);
 } else {
  const todayStart=new Date(now.getFullYear(),now.getMonth(),now.getDate());
  const tomorrowStart=new Date(now.getFullYear(),now.getMonth(),now.getDate()+1);
@@ -149,9 +149,9 @@ if(shown.length===0){
   const e=shown[i],y=scheduleY+128+i*92;
   if(i>0)box(88,y-15,814,2,"#FFFFFF",.11);
   const dayLabel=e.startDate<tomorrowStart?"TODAY":"TOMORROW";
-  elegant(dayLabel,88,y+3,152,35,19,gold);
-  elegant(e.isAllDay?"終日":formatTime(e),88,y+34,150,33,22,muted);
-  elegant(title(e.title,24),253,y+10,625,58,30,ivory,false,"left",true);
+  elegant(dayLabel,88,y+3,152,35,22,gold,true);
+  elegant(e.isAllDay?"終日":formatTime(e),88,y+34,150,35,25,muted);
+  elegant(title(e.title,24),253,y+10,625,58,33,ivory);
  }
 }
 const image=ctx.getImage();
