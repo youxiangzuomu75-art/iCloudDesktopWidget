@@ -1,4 +1,4 @@
-// iCloud Lock Calendar for Scriptable - v1.8.1
+// iCloud Lock Calendar for Scriptable - v1.8.2
 // iPhone-local calendars and photographs only. No Apple credentials required.
 // For automatic updates, run the LockCalendarLauncher in Scriptable.
 const automatic = !config.runsInApp || args.shortcutParameter === "auto" || args.shortcutParameter === "AUTO";
@@ -14,7 +14,7 @@ const THEMES = {
  ivory: ["#f8f1df","#353d49","#246b99","#e1d2ae"]
 };
 const theme=THEMES[SETTINGS.style]||THEMES.midnight;
-const [bg,fg,accent,todayColor]=theme;
+const [bg,fg,themeAccent,todayColor]=theme;
 const fm=FileManager.local();
 const folder=fm.joinPath(fm.documentsDirectory(),"LockCalendar");
 if(!fm.fileExists(folder))fm.createDirectory(folder,true);
