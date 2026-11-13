@@ -1,4 +1,4 @@
-// iCloud Lock Calendar for Scriptable - v1.8.0
+// iCloud Lock Calendar for Scriptable - v1.8.1
 // iPhone-local calendars and photographs only. No Apple credentials required.
 // For automatic updates, run the LockCalendarLauncher in Scriptable.
 const automatic = !config.runsInApp || args.shortcutParameter === "auto" || args.shortcutParameter === "AUTO";
@@ -43,8 +43,12 @@ const events=(await CalendarEvent.between(monthStart,monthEnd,calendars)).sort((
 // Today's and tomorrow's entries only; include all-day and multi-day events.
 const todayStart=new Date(date.getFullYear(),date.getMonth(),date.getDate());
 const afterTomorrow=new Date(date.getFullYear(),date.getMonth(),date.getDate()+2);
-const relevant=events.filter(e=>e.startDate<afterTomorrow && (e.endDate>todayStart || (e.startDate>=todayStart && e.endDate.getTime()===e.startDate.getTime())));
-const upcoming=relevant.slice(0,SETTINGS.maxEvents);
+// Query the actual 2-day window independently: recurring and cross-month events
+// must not disappear merely because a month-level query started later.
+const upcoming=(await CalendarEvent.between(todayStart,afterTomorrow,calendars))
+ .filter(e=>e.startDate<afterTomorrow && (e.endDate>todayStart ||
+   (e.startDate>=todayStart && e.endDate.getTime()===e.startDate.getTime())))
+ .sort((a,b)=>a.startDate-b.startDate);
 const resolution=Device.screenResolution();
 const W=Math.min(resolution.width,resolution.height);
 const H=Math.max(resolution.width,resolution.height);
@@ -142,19 +146,23 @@ const scheduleY=1385;
 rounded(58,scheduleY,884,546,28,"#131D26",photo?.82:.97);
 box(86,scheduleY+83,110,2,accent,.73);
 elegant("T O D A Y  /  T O M O R R O W",86,scheduleY+30,720,54,23,accent,false);
-const shown=upcoming.slice(0,4);
+// Compact eight-row agenda: same panel size, with no overlap on lock controls.
+const shown=upcoming.slice(0,SETTINGS.maxEvents);
+if(upcoming.length>SETTINGS.maxEvents){
+ elegant("+"+(upcoming.length-SETTINGS.maxEvents)+" MORE",756,scheduleY+32,140,38,19,muted,false,"right",true);
+}
 if(shown.length===0){
- elegant("今日・明日の予定はありません",90,scheduleY+150,760,72,33,ivory);
+ elegant("今日・明日の予定はありません",90,scheduleY+151,760,72,33,ivory);
 } else {
- const todayStart=new Date(now.getFullYear(),now.getMonth(),now.getDate());
  const tomorrowStart=new Date(now.getFullYear(),now.getMonth(),now.getDate()+1);
+ const rowTop=scheduleY+111,rowStep=52;
  for(let i=0;i<shown.length;i++){
-  const e=shown[i],y=scheduleY+128+i*92;
-  if(i>0)box(88,y-15,814,2,"#FFFFFF",.11);
-  const dayLabel=e.startDate<tomorrowStart?"TODAY":"TOMORROW";
-  elegant(dayLabel,88,y+3,152,35,23,accent,true);
-  elegant(e.isAllDay?"終日":formatTime(e),88,y+34,150,35,25,muted);
-  elegant(title(e.title,24),253,y+10,625,58,35,ivory);
+  const e=shown[i],y=rowTop+i*rowStep;
+  if(i>0)box(88,y-4,814,1,"#FFFFFF",.10);
+  const dayLabel=e.startDate<tomorrowStart?"今日":"明日";
+  elegant(dayLabel,90,y+7,78,37,23,accent,true);
+  elegant(e.isAllDay?"終日":formatTime(e),169,y+6,130,39,26,muted);
+  elegant(title(e.title,29),307,y+4,576,43,30,ivory);
  }
 }
 const image=ctx.getImage();
