@@ -1,4 +1,4 @@
-// iCloud Lock Calendar for Scriptable - v1.8.2
+// iCloud Lock Calendar for Scriptable - v1.9.0
 // iPhone-local calendars and photographs only. No Apple credentials required.
 // For automatic updates, run the LockCalendarLauncher in Scriptable.
 const automatic = !config.runsInApp || args.shortcutParameter === "auto" || args.shortcutParameter === "AUTO";
@@ -21,16 +21,39 @@ if(!fm.fileExists(folder))fm.createDirectory(folder,true);
 const photoPath=fm.joinPath(folder,"Background.jpg");
 let photo=null;
 if(SETTINGS.photo){
-  if(config.runsInApp && !automatic && !fm.fileExists(photoPath)){
+  // In-app runs offer a one-time photo change without editing code or Shortcuts.
+  // Shortcut/automation runs remain completely non-interactive.
+  if(config.runsInApp && !automatic){
     const prompt=new Alert();
-    prompt.title="ロック画面の背景写真";
-    prompt.message="好きな写真を背景にできます。";
-    prompt.addAction("保存済みの写真を使用");
-    prompt.addAction("新しい写真を選択");
+    prompt.title="ロック画面カレンダー";
+    prompt.message="背景写真を変更できます。現在の写真は変更前にバックアップされます。";
+    prompt.addAction("今の背景で更新");
+    prompt.addAction("背景写真を選び直す");
+    if(fm.fileExists(fm.joinPath(folder,"Background_previous.jpg")))
+      prompt.addAction("前の背景に戻す");
+    prompt.addCancelAction("キャンセル");
     const choice=await prompt.presentSheet();
+    if(choice===-1) return null;
     if(choice===1){
-      photo=await Photos.fromLibrary();
-      fm.writeImage(photoPath,photo);
+      let selected=null;
+      try { selected=await Photos.fromLibrary(); }
+      catch(err) { console.warn("写真の選択をキャンセル: "+err); }
+      if(selected){
+        if(fm.fileExists(photoPath)){
+          fm.writeImage(fm.joinPath(folder,"Background_previous.jpg"),fm.readImage(photoPath));
+        }
+        fm.writeImage(photoPath,selected);
+        photo=selected;
+      }
+    } else if(choice===2){
+      const prior=fm.joinPath(folder,"Background_previous.jpg");
+      if(fm.fileExists(prior)){
+        const previous=fm.readImage(prior);
+        if(fm.fileExists(photoPath))
+          fm.writeImage(prior,fm.readImage(photoPath));
+        fm.writeImage(photoPath,previous);
+        photo=previous;
+      }
     }
   }
   if(!photo && fm.fileExists(photoPath))photo=fm.readImage(photoPath);
